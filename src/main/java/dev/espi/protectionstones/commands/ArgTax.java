@@ -104,8 +104,8 @@ public class ArgTax implements PSCommandArg {
 
     public boolean taxInfo(String[] args, HashMap<String, String> flags, PSPlayer p) {
         if (args.length == 2) { // /ps tax info
-            Bukkit.getScheduler().runTaskAsynchronously(ProtectionStones.getInstance(), () -> {
-                int pageNum = (flags.get("-p") == null || !MiscUtil.isValidInteger(flags.get("-p")) ? 0 : Integer.parseInt(flags.get("-p"))-1);
+            Runnable runnable = () -> {
+                int pageNum = (flags.get("-p") == null || !MiscUtil.isValidInteger(flags.get("-p")) ? 0 : Integer.parseInt(flags.get("-p")) - 1);
 
                 List<TextComponent> entries = new ArrayList<>();
                 for (PSRegion r : p.getTaxEligibleRegions()) {
@@ -133,7 +133,13 @@ public class ArgTax implements PSCommandArg {
 
                 if (pageNum * GUI_SIZE + GUI_SIZE < entries.size())
                     PSL.msg(p, PSL.TAX_NEXT.msg().replace("%page%", pageNum + 2 + ""));
-            });
+            };
+
+            if (ProtectionStones.getInstance().isFolia) {
+                Bukkit.getAsyncScheduler().runNow(ProtectionStones.getInstance(), task -> runnable.run());
+            } else {
+                Bukkit.getScheduler().runTaskAsynchronously(ProtectionStones.getInstance(), runnable);
+            }
         } else if (args.length == 3) { // /ps tax info [region]
             List<PSRegion> list = ProtectionStones.getPSRegions(p.getPlayer().getWorld(), args[2]);
             if (list.isEmpty()) {

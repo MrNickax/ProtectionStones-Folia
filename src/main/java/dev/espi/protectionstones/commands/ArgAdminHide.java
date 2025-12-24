@@ -48,15 +48,23 @@ class ArgAdminHide {
             mgr = WGUtils.getRegionManagerWithWorld(w);
         }
 
-        Bukkit.getScheduler().runTaskAsynchronously(ProtectionStones.getInstance(), () -> {
+        Runnable hideRunnable = () -> {
             // loop through regions that are protection stones and hide or unhide the block
             for (ProtectedRegion r : mgr.getRegions().values()) {
                 if (ProtectionStones.isPSRegion(r)) {
                     PSRegion region = PSRegion.fromWGRegion(w, r);
                     if (args[1].equalsIgnoreCase("hide")) {
-                        Bukkit.getScheduler().runTask(ProtectionStones.getInstance(), region::hide);
-                    } else if (args[1].equalsIgnoreCase("unhide")){
-                        Bukkit.getScheduler().runTask(ProtectionStones.getInstance(), region::unhide);
+                        if (ProtectionStones.getInstance().isFolia) {
+                            Bukkit.getRegionScheduler().execute(ProtectionStones.getInstance(), region.getProtectBlock().getLocation(), region::hide);
+                        } else {
+                            Bukkit.getScheduler().runTask(ProtectionStones.getInstance(), region::hide);
+                        }
+                    } else if (args[1].equalsIgnoreCase("unhide")) {
+                        if (ProtectionStones.getInstance().isFolia) {
+                            Bukkit.getRegionScheduler().execute(ProtectionStones.getInstance(), region.getProtectBlock().getLocation(), region::unhide);
+                        } else {
+                            Bukkit.getScheduler().runTask(ProtectionStones.getInstance(), region::unhide);
+                        }
                     }
                 }
             }
@@ -64,7 +72,13 @@ class ArgAdminHide {
             String hMessage = args[1].equalsIgnoreCase("unhide") ? "unhidden" : "hidden";
             PSL.msg(p, PSL.ADMIN_HIDE_TOGGLED.msg()
                     .replace("%message%", hMessage));
-        });
+        };
+
+        if (ProtectionStones.getInstance().isFolia) {
+            Bukkit.getAsyncScheduler().runNow(ProtectionStones.getInstance(), task -> hideRunnable.run());
+        } else {
+            Bukkit.getScheduler().runTaskAsynchronously(ProtectionStones.getInstance(), hideRunnable);
+        }
 
         return true;
     }

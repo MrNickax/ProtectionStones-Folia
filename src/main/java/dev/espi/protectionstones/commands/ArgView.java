@@ -25,6 +25,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class ArgView implements PSCommandArg {
@@ -78,13 +79,17 @@ public class ArgView implements PSCommandArg {
 
         // add player to cooldown
         cooldown.add(p.getUniqueId());
-        Bukkit.getScheduler().runTaskLaterAsynchronously(ProtectionStones.getInstance(), () -> cooldown.remove(p.getUniqueId()), 20 * ProtectionStones.getInstance().getConfigOptions().psViewCooldown);
+        if (ProtectionStones.getInstance().isFolia) {
+            Bukkit.getAsyncScheduler().runDelayed(ProtectionStones.getInstance(), (task) -> cooldown.remove(p.getUniqueId()), ProtectionStones.getInstance().getConfigOptions().psViewCooldown, TimeUnit.SECONDS);
+        } else {
+            Bukkit.getScheduler().runTaskLaterAsynchronously(ProtectionStones.getInstance(), () -> cooldown.remove(p.getUniqueId()), 20 * ProtectionStones.getInstance().getConfigOptions().psViewCooldown);
+        }
 
         int playerY = p.getLocation().getBlockY(), minY = r.getWGRegion().getMinimumPoint().getBlockY(), maxY = r.getWGRegion().getMaximumPoint().getBlockY();
 
         // send particles to client
 
-        Bukkit.getScheduler().runTaskAsynchronously(ProtectionStones.getInstance(), () -> {
+        Runnable particleRunnable = () -> {
 
             AtomicInteger modU = new AtomicInteger(0);
 
@@ -118,7 +123,13 @@ public class ArgView implements PSCommandArg {
                     modU.set((modU.get() + 1) % 2);
                 }
             });
-        });
+        };
+
+        if (ProtectionStones.getInstance().isFolia) {
+            Bukkit.getAsyncScheduler().runNow(ProtectionStones.getInstance(), (task) -> particleRunnable.run());
+        } else {
+            Bukkit.getScheduler().runTaskAsynchronously(ProtectionStones.getInstance(), particleRunnable);
+        }
         return true;
     }
 

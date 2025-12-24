@@ -65,7 +65,7 @@ public class ArgList implements PSCommandArg {
         PSPlayer psp = PSPlayer.fromPlayer((Player) s);
 
         // run query async to reduce load
-        Bukkit.getScheduler().runTaskAsynchronously(ProtectionStones.getInstance(), () -> {
+        Runnable listRunnable = () -> {
             if (args.length == 1) {
                 List<PSRegion> regions = psp.getPSRegionsCrossWorld(psp.getPlayer().getWorld(), true);
                 display(s, regions, psp.getUuid(), true);
@@ -76,7 +76,13 @@ public class ArgList implements PSCommandArg {
             } else {
                 PSL.msg(s, PSL.LIST_HELP.msg());
             }
-        });
+        };
+
+        if (ProtectionStones.getInstance().isFolia) {
+            Bukkit.getAsyncScheduler().runNow(ProtectionStones.getInstance(), task -> listRunnable.run());
+        } else {
+            Bukkit.getScheduler().runTaskAsynchronously(ProtectionStones.getInstance(), listRunnable);
+        }
         return true;
     }
 

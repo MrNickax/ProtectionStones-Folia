@@ -34,7 +34,7 @@ class ArgAdminSetTaxAutopayers {
 
         PSL.msg(s, ChatColor.GRAY + "Scanning through regions, and setting tax autopayers for regions that don't have one...");
 
-        Bukkit.getScheduler().runTaskAsynchronously(ProtectionStones.getInstance(), () -> {
+        Runnable scanRunnable = () -> {
             WGUtils.getAllRegionManagers().forEach((w, rgm) -> {
                 for (ProtectedRegion r : rgm.getRegions().values()) {
                     PSRegion psr = PSRegion.fromWGRegion(w, r);
@@ -49,7 +49,13 @@ class ArgAdminSetTaxAutopayers {
                 }
             });
             PSL.msg(s, ChatColor.GREEN + "Complete!");
-        });
+        };
+
+        if (ProtectionStones.getInstance().isFolia) {
+            Bukkit.getAsyncScheduler().runNow(ProtectionStones.getInstance(), task -> scanRunnable.run());
+        } else {
+            Bukkit.getScheduler().runTaskAsynchronously(ProtectionStones.getInstance(), scanRunnable);
+        }
 
         return true;
     }

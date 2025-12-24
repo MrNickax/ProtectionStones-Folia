@@ -30,6 +30,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.util.StringUtil;
 
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 public class ArgHome implements PSCommandArg {
@@ -80,9 +81,13 @@ public class ArgHome implements PSCommandArg {
                 // cache home regions
                 tabCache.put(p.getUniqueId(), regionNames);
 
-                Bukkit.getScheduler().runTaskLater(ProtectionStones.getInstance(), () -> {
-                    tabCache.remove(p.getUniqueId());
-                }, 200); // remove cache after 10 seconds
+                if (ProtectionStones.getInstance().isFolia) {
+                    p.getScheduler().execute(ProtectionStones.getInstance(), () -> tabCache.remove(p.getUniqueId()), null, 200L);
+                } else {
+                    Bukkit.getScheduler().runTaskLater(ProtectionStones.getInstance(), () -> {
+                        tabCache.remove(p.getUniqueId());
+                    }, 200); // remove cache after 10 seconds
+                }
             }
 
             return StringUtil.copyPartialMatches(args[1], tabCache.get(p.getUniqueId()), new ArrayList<>());
@@ -128,7 +133,7 @@ public class ArgHome implements PSCommandArg {
         if (args.length != 2 && args.length != 1)
             return PSL.msg(p, PSL.HOME_HELP.msg());
 
-        Bukkit.getScheduler().runTaskAsynchronously(ProtectionStones.getInstance(), () -> {
+        Runnable homeRunnable = () -> {
             PSPlayer psp = PSPlayer.fromPlayer(p);
             if (args.length == 1) {
                 // just "/ps home"
@@ -160,7 +165,13 @@ public class ArgHome implements PSCommandArg {
 
                 ArgTp.teleportPlayer(p, regions.get(0));
             }
-        });
+        };
+
+        if (ProtectionStones.getInstance().isFolia) {
+            Bukkit.getAsyncScheduler().runNow(ProtectionStones.getInstance(), task -> homeRunnable.run());
+        } else {
+            Bukkit.getScheduler().runTaskAsynchronously(ProtectionStones.getInstance(), homeRunnable);
+        }
 
         return true;
     }

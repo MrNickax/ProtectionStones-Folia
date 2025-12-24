@@ -59,6 +59,8 @@ import java.util.List;
 
 public class ListenerClass implements Listener {
 
+    private final boolean isFolia = ProtectionStones.getInstance().isFolia;
+
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onPlayerJoin(PlayerJoinEvent e) {
         Player p = e.getPlayer();
@@ -69,7 +71,14 @@ public class ListenerClass implements Listener {
         UUIDCache.storeUUIDNamePair(p.getUniqueId(), p.getName());
 
         // allow worldguard to resolve all UUIDs to names
-        Bukkit.getScheduler().runTaskAsynchronously(ProtectionStones.getInstance(), () -> UUIDCache.storeWGProfile(p.getUniqueId(), p.getName()));
+
+        Runnable runnable = () -> UUIDCache.storeWGProfile(p.getUniqueId(), p.getName());
+
+        if (isFolia) {
+            Bukkit.getAsyncScheduler().runNow(ProtectionStones.getInstance(), task -> runnable.run());
+        } else {
+            Bukkit.getScheduler().runTaskAsynchronously(ProtectionStones.getInstance(), runnable);
+        }
 
         // add recipes to player's recipe book
         p.discoverRecipes(RecipeUtil.getRecipeKeys());
@@ -83,18 +92,24 @@ public class ListenerClass implements Listener {
 
         // tax join message
         if (ProtectionStones.getInstance().getConfigOptions().taxEnabled && ProtectionStones.getInstance().getConfigOptions().taxMessageOnJoin) {
-            Bukkit.getScheduler().runTaskAsynchronously(ProtectionStones.getInstance(), () -> {
+            Runnable runnable1 = () -> {
                 int amount = 0;
                 for (PSRegion psr : psp.getTaxEligibleRegions()) {
                     for (PSRegion.TaxPayment tp : psr.getTaxPaymentsDue()) {
-                        amount += tp.getAmount();
+                        amount += (int) tp.getAmount();
                     }
                 }
 
                 if (amount != 0) {
                     PSL.msg(psp, PSL.TAX_JOIN_MSG_PENDING_PAYMENTS.msg().replace("%money%", "" + amount));
                 }
-            });
+            };
+
+            if (isFolia) {
+                Bukkit.getAsyncScheduler().runNow(ProtectionStones.getInstance(), task -> runnable1.run());
+            } else {
+                Bukkit.getScheduler().runTaskAsynchronously(ProtectionStones.getInstance(), runnable1);
+            }
         }
     }
 

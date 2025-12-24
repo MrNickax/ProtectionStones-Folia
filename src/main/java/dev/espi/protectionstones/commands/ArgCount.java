@@ -68,7 +68,7 @@ public class ArgCount implements PSCommandArg {
     @Override
     public boolean executeArgument(CommandSender s, String[] args, HashMap<String, String> flags) {
         Player p = (Player) s;
-        Bukkit.getScheduler().runTaskAsynchronously(ProtectionStones.getInstance(), () -> {
+        Runnable countRunnable = () -> {
             int[] count;
 
             if (args.length == 1) {
@@ -80,7 +80,7 @@ public class ArgCount implements PSCommandArg {
                 count = countRegionsOfPlayer(p.getUniqueId(), p.getWorld());
                 PSL.msg(p, PSL.PERSONAL_REGION_COUNT.msg().replace("%num%", "" + count[0]));
                 if (count[1] != 0) {
-                    PSL.msg(p, PSL.PERSONAL_REGION_COUNT_MERGED.msg().replace("%num%", ""+count[1]));
+                    PSL.msg(p, PSL.PERSONAL_REGION_COUNT_MERGED.msg().replace("%num%", "" + count[1]));
                 }
 
             } else if (args.length == 2) {
@@ -108,7 +108,13 @@ public class ArgCount implements PSCommandArg {
             } else {
                 PSL.msg(p, PSL.COUNT_HELP.msg());
             }
-        });
+        };
+
+        if (ProtectionStones.getInstance().isFolia) {
+            Bukkit.getAsyncScheduler().runNow(ProtectionStones.getInstance(), task -> countRunnable.run());
+        } else {
+            Bukkit.getScheduler().runTaskAsynchronously(ProtectionStones.getInstance(), countRunnable);
+        }
         return true;
     }
 

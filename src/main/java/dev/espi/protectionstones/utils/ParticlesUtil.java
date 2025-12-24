@@ -1,7 +1,7 @@
 /*
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
+ * the Free Software Foundation, either version 3 of the License or
  * (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
@@ -22,11 +22,18 @@ import org.bukkit.Particle;
 import org.bukkit.entity.Player;
 
 public class ParticlesUtil {
+
     public static void persistRedstoneParticle(Player p, Location l, Particle.DustOptions d, int occ) {
         for (int i = 0; i < occ; i++) {
-            Bukkit.getScheduler().runTaskLater(ProtectionStones.getInstance(), () -> {
-                if (p.isOnline()) p.spawnParticle(Particle.DUST, l, 1, d);
-            }, i*20);
+            if (ProtectionStones.getInstance().isFolia) {
+                Bukkit.getRegionScheduler().runDelayed(ProtectionStones.getInstance(), l, task -> {
+                    if (p.isOnline()) p.spawnParticle(Particle.DUST, l, 1, d);
+                }, i * 20L);
+            } else {
+                Bukkit.getScheduler().runTaskLater(ProtectionStones.getInstance(), () -> {
+                    if (p.isOnline()) p.spawnParticle(Particle.DUST, l, 1, d);
+                }, i * 20L);
+            }
         }
     }
 }

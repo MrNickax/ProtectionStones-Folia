@@ -30,15 +30,17 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
- * Handler for ProtectionStones economy related tasks.
+ * Handler for ProtectionStones economy-related tasks.
  */
-
 public class PSEconomy {
+    
     private List<PSRegion> rentedList = new CopyOnWriteArrayList<>();
-    private static int rentRunner = -1, taxRunner = -1;
+    private static Object rentTask = null, taxTask = null;
+    private final boolean isFolia = ProtectionStones.getInstance().isFolia;
 
     public PSEconomy() {
         if (!ProtectionStones.getInstance().isVaultSupportEnabled()) {
@@ -49,11 +51,20 @@ public class PSEconomy {
         loadRentList();
 
         // start rent
-        rentRunner = Bukkit.getScheduler().runTaskTimerAsynchronously(ProtectionStones.getInstance(), this::updateRents, 0, 200).getTaskId();
+        if (isFolia) {
+            rentTask = Bukkit.getAsyncScheduler().runAtFixedRate(ProtectionStones.getInstance(), (task) -> this.updateRents(), 0, 10, TimeUnit.SECONDS);
+        } else {
+            rentTask = Bukkit.getScheduler().runTaskTimerAsynchronously(ProtectionStones.getInstance(), this::updateRents, 0, 200);
+        }
 
         // start taxes
-        if (ProtectionStones.getInstance().getConfigOptions().taxEnabled)
-            taxRunner = Bukkit.getScheduler().runTaskTimerAsynchronously(ProtectionStones.getInstance(), this::updateTaxes, 0, 200).getTaskId();
+        if (ProtectionStones.getInstance().getConfigOptions().taxEnabled) {
+            if (isFolia) {
+                taxTask = Bukkit.getAsyncScheduler().runAtFixedRate(ProtectionStones.getInstance(), (task) -> this.updateTaxes(), 0, 10, TimeUnit.SECONDS);
+            } else {
+                taxTask = Bukkit.getScheduler().runTaskTimerAsynchronously(ProtectionStones.getInstance(), this::updateTaxes, 0, 200);
+            }
+        }
     }
 
     private synchronized void updateRents() {
@@ -89,13 +100,21 @@ public class PSEconomy {
      * Stops the economy cycle. Used for reloads when creating a new PSEconomy.
      */
     public void stop() {
-        if (rentRunner != -1) {
-            Bukkit.getScheduler().cancelTask(rentRunner);
-            rentRunner = -1;
+        if (rentTask != null) {
+            if (isFolia) {
+                ((io.papermc.paper.threadedregions.scheduler.ScheduledTask) rentTask).cancel();
+            } else {
+                ((org.bukkit.scheduler.BukkitTask) rentTask).cancel();
+            }
+            rentTask = null;
         }
-        if (taxRunner != -1) {
-            Bukkit.getScheduler().cancelTask(taxRunner);
-            taxRunner = -1;
+        if (taxTask != null) {
+            if (isFolia) {
+                ((io.papermc.paper.threadedregions.scheduler.ScheduledTask) taxTask).cancel();
+            } else {
+                ((org.bukkit.scheduler.BukkitTask) taxTask).cancel();
+            }
+            taxTask = null;
         }
     }
 
@@ -126,7 +145,7 @@ public class PSEconomy {
     public static void processTaxes(PSRegion r) {
         // if taxes are enabled for this regions
         if (r.getTypeOptions() != null && r.getTypeOptions().taxPeriod != -1) {
-            Bukkit.getScheduler().runTask(ProtectionStones.getInstance(), () -> {
+            Runnable runnable = () -> {
                 // update tax payments due
                 r.updateTaxPayments();
 
@@ -146,7 +165,13 @@ public class PSEconomy {
                 if (r.isTaxPaymentLate()) {
                     r.deleteRegion(true); // TODO
                 }
-            });
+            };
+
+            if (ProtectionStones.getInstance().isFolia) {
+                Bukkit.getRegionScheduler().execute(ProtectionStones.getInstance(), r.getProtectBlock().getLocation(), runnable);
+            } else {
+                Bukkit.getScheduler().runTask(ProtectionStones.getInstance(), runnable);
+            }
         }
     }
 
@@ -190,8 +215,14 @@ public class PSEconomy {
                     .replace("%region%", r.getName() != null ? r.getName() : r.getId()));
         }
 
-        // update money must be run in main thread
-        Bukkit.getScheduler().runTask(ProtectionStones.getInstance(), () -> tenant.pay(landlord, r.getPrice()));
+        // update money must be run in main thread (or region thread for Folia)
+        Runnable runnable = () -> tenant.pay(landlord, r.getPrice());
+        if (ProtectionStones.getInstance().isFolia) {
+            Bukkit.getRegionScheduler().execute(ProtectionStones.getInstance(), r.getProtectBlock().getLocation(), runnable);
+        } else {
+            Bukkit.getScheduler().runTask(ProtectionStones.getInstance(), runnable);
+        }
+
         r.setRentLastPaid(Instant.now().getEpochSecond());
         try { // must save region to persist last paid
             r.getWGRegionManager().saveChanges();

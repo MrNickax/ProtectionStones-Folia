@@ -43,7 +43,9 @@ import java.util.HashMap;
 import java.util.List;
 
 public class BlockHandler {
-    private static HashMap<Player, Double> lastProtectStonePlaced = new HashMap<>();
+
+    private static final boolean isFolia = ProtectionStones.getInstance().isFolia;
+    private static final HashMap<Player, Double> lastProtectStonePlaced = new HashMap<>();
 
     private static String checkCooldown(Player p) {
         double currentTime = System.currentTimeMillis();
@@ -275,7 +277,13 @@ public class BlockHandler {
         if (blockOptions.autoHide) {
             PSL.msg(p, PSL.REGION_HIDDEN.msg());
             // run on next tick so placing tile entities don't complain
-            Bukkit.getScheduler().runTask(ProtectionStones.getInstance(), () -> l.getBlock().setType(Material.AIR));
+            Runnable runnable = () -> l.getBlock().setType(Material.AIR);
+
+            if (isFolia) {
+                Bukkit.getRegionScheduler().run(ProtectionStones.getInstance(), l, task -> runnable.run());
+            } else {
+                Bukkit.getScheduler().runTask(ProtectionStones.getInstance(), runnable);
+            }
         }
 
         if (blockOptions.startWithTaxAutopay) {
@@ -312,7 +320,8 @@ public class BlockHandler {
             // actually do auto merge
             if (!showGUI) {
                 PSRegion finalMergeTo = mergeTo;
-                Bukkit.getScheduler().runTaskAsynchronously(ProtectionStones.getInstance(), () -> {
+
+                Runnable runnable = () -> {
                     try {
                         WGMerge.mergeRealRegions(p.getWorld(), r.getWGRegionManager(), finalMergeTo, Arrays.asList(finalMergeTo, r));
                         PSL.msg(p, PSL.MERGE_AUTO_MERGED.msg().replace("%region%", finalMergeTo.getId()));
@@ -321,7 +330,13 @@ public class BlockHandler {
                     } catch (WGMerge.RegionCannotMergeWhileRentedException e) {
                         // don't need to tell player that you can't merge
                     }
-                });
+                };
+
+                if (isFolia) {
+                    Bukkit.getAsyncScheduler().runNow(ProtectionStones.getInstance(), task -> runnable.run());
+                } else {
+                    Bukkit.getScheduler().runTaskAsynchronously(ProtectionStones.getInstance(), runnable);
+                }
             }
         }
 

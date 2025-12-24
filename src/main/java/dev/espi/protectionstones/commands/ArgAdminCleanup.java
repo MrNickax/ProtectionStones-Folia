@@ -91,7 +91,7 @@ class ArgAdminCleanup {
 
         // async cleanup task
         String finalAlias = alias;
-        Bukkit.getScheduler().runTaskAsynchronously(ProtectionStones.getInstance(), () -> {
+        Runnable cleanupRunnable = () -> {
             int days = (args.size() > 0) ? Integer.parseInt(args.get(0)) : 30; // 30 days is default if days aren't specified
 
             PSL.msg(p, PSL.ADMIN_CLEANUP_HEADER.msg()
@@ -140,14 +140,24 @@ class ArgAdminCleanup {
             // start recursive iteration to delete a region each tick
             Iterator<PSRegion> deleteRegionsIterator = toDelete.iterator();
             regionLoop(deleteRegionsIterator, p, cleanupOperation.equalsIgnoreCase("remove"));
-        });
+        };
+
+        if (ProtectionStones.getInstance().isFolia) {
+            Bukkit.getAsyncScheduler().runNow(ProtectionStones.getInstance(), task -> cleanupRunnable.run());
+        } else {
+            Bukkit.getScheduler().runTaskAsynchronously(ProtectionStones.getInstance(), cleanupRunnable);
+        }
         return true;
     }
 
     static private void regionLoop(Iterator<PSRegion> deleteRegionsIterator, CommandSender p, boolean isRemoveOperation) {
         if (deleteRegionsIterator.hasNext()) {
-            Bukkit.getScheduler().runTaskLater(ProtectionStones.getInstance(), () ->
-                    processRegion(deleteRegionsIterator, p, isRemoveOperation), 1);
+            if (ProtectionStones.getInstance().isFolia) {
+                Bukkit.getGlobalRegionScheduler().runDelayed(ProtectionStones.getInstance(), task -> processRegion(deleteRegionsIterator, p, isRemoveOperation), 1L);
+            } else {
+                Bukkit.getScheduler().runTaskLater(ProtectionStones.getInstance(), () ->
+                        processRegion(deleteRegionsIterator, p, isRemoveOperation), 1);
+            }
         } else { // finished region iteration
             PSL.msg(p, PSL.ADMIN_CLEANUP_FOOTER.msg()
                     .replace("%arg%", isRemoveOperation ? "remove" : "preview"));
@@ -175,8 +185,12 @@ class ArgAdminCleanup {
 
             p.sendMessage(ChatColor.YELLOW + "Removed region " + r.getId() + " due to inactive owners.");
 
-            // must be sync
-            r.deleteRegion(true);
+            // must be sync (on region thread for Folia)
+            if (ProtectionStones.getInstance().isFolia) {
+                Bukkit.getRegionScheduler().execute(ProtectionStones.getInstance(), r.getProtectBlock().getLocation(), () -> r.deleteRegion(true));
+            } else {
+                r.deleteRegion(true);
+            }
         } else { // preview
 
             p.sendMessage(ChatColor.YELLOW + "Found region " + r.getId() + " that can be deleted.");

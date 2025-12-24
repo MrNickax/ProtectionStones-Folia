@@ -59,6 +59,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
  */
 
 public class ProtectionStones extends JavaPlugin {
+
     // change this when the config version goes up
     public static final int CONFIG_VERSION = 16;
 
@@ -93,6 +94,8 @@ public class ProtectionStones extends JavaPlugin {
 
     // ps toggle/on/off list
     public static Set<UUID> toggleList = new HashSet<>();
+
+    public boolean isFolia = checkFolia();
 
     /* ~~~~~~~~~~ Instance methods ~~~~~~~~~~~~ */
 
@@ -637,11 +640,17 @@ public class ProtectionStones extends JavaPlugin {
         // uuid cache
         getLogger().info("Building UUID cache... (if slow change async-load-uuid-cache in the config to true)");
         if (configOptions.asyncLoadUUIDCache) { // async load
-            Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            Runnable runnable = () -> {
                 for (OfflinePlayer op : Bukkit.getOfflinePlayers()) {
                     UUIDCache.storeUUIDNamePair(op.getUniqueId(), op.getName());
                 }
-            });
+            };
+
+            if (isFolia) {
+                Bukkit.getAsyncScheduler().runNow(this, task -> runnable.run());
+            } else {
+                Bukkit.getScheduler().runTaskAsynchronously(plugin, runnable);
+            }
         } else { // sync load
             for (OfflinePlayer op : Bukkit.getOfflinePlayers()) {
                 UUIDCache.storeUUIDNamePair(op.getUniqueId(), op.getName());
@@ -661,4 +670,18 @@ public class ProtectionStones extends JavaPlugin {
         getLogger().info(ChatColor.WHITE + "ProtectionStones has successfully started!");
     }
 
+    /**
+     * Checks if the server is running on Folia by attempting to find a Folia-specific class.
+     * Folia is a fork of Paper that implements regionized threading for improved performance.
+     *
+     * @return true if the server is running on Folia, false otherwise
+     */
+    private boolean checkFolia() {
+        try {
+            Class.forName("io.papermc.paper.threadedregions.RegionizedServer");
+            return true;
+        } catch (ClassNotFoundException e) {
+            return false;
+        }
+    }
 }
